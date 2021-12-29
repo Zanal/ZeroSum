@@ -1,6 +1,6 @@
 close all
 clear
-
+%
 str = input("Do you want to change default setting? Y or enter: ",'s');
 if ~isempty(str)
     newN = input("Set number of points: "); % check if integer

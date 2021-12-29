@@ -184,7 +184,7 @@ function calcedHeight = calculateHeights(linePoints, foundPoint)
         norm(linePoints(1:2)-linePoints(4:5)) * (abs(linePoints(3)-linePoints(6)));
 end
 
-% Creates Cartesian product from unique x and y coordinates
+% Creates Cartesian product from 
 function cartesianPoints = makeCartesianProduct(smootherpoints)
     xn = unique(smootherpoints(:, 1), 'rows');
     yn = unique(smootherpoints(:, 2), 'rows');

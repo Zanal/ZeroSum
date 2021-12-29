@@ -1,6 +1,10 @@
 close all
 clear
-%
+
+runThesis();
+
+% Function for 
+function runThesis()
 str = input("Do you want to change default setting? Y or enter: ",'s');
 if ~isempty(str)
     newN = input("Set number of points: "); % check if integer
@@ -17,7 +21,7 @@ end
 [pointsArr, heightList] = generateEnvironment(smoothVal, n, height);
 [r, c] = find(pointsArr > -1);
 bools = pointsArr > -1;
-coords = [r, c, pointsArr(bools)]; % almost x,y,z
+coords = [r, c, pointsArr(bools)]; % x,y,z
 
 triangArr = createTriangulations(r, c);
 [lineList, lLwCoords] = createListOfLines(coords, triangArr);
@@ -25,13 +29,14 @@ sLWCoords = sortrows(lLwCoords, 'ascend');
 smootherpoints = smoothenPlane(coords, sLWCoords); % EACH POINTS NEEDS TRIANGLE TO FIND HEIGHT
 % CARTESIAN PRODUCT NOW
 cartesianPoints = makeCartesianProduct(smootherpoints);
-cartesianPoints = [cartesianPoints, ones(size(cartesianPoints,1), 1)];
+cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)];
 [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows');
 cartesianPoints(indx, 3) = smootherpoints(:, 3);
 disp(cartesianPoints);
-% FIND BELONG TRIANGLE - for all triangles search remaining points
+% FIND BELONG TRIANGLE - for all triangles search remaining points + height
 displayTriangulated(triangArr, heightList, r, c, cartesianPoints, pointsArr);
 disp("DONE");
+end
 
 % Sets required variables and checks valid values
 function [n, smoothVal, numRuns, height]  = setVariables(newN, newSmooth, newRuns, newHeight)
@@ -62,10 +67,10 @@ function [pointsArr, heightList] = generateEnvironment(smoothVal, n, height)
     cornerIdx = [1, nRC, nIdx - nRC + 1, nIdx];
     idx = sort([noCornerIdx(randperm(numel(noCornerIdx), n - 4)), cornerIdx]); % Matlab indexes from 1, maybe sort maybe no
     idx = [3,7,8,12,13,19, cornerIdx]; % testing crosses
-    idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx];
+    idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx]; % TESTING
     heightRange = height + 1;
     heightList = randperm(heightRange, n) - 1;
-    heightList = [4,41,34,15,44,1,19,16,32,33];
+    heightList = [4,41,34,15,44,1,19,16,32,33]; % TESTING
     pointsArr(idx) = heightList; % can be 0
 end
 
@@ -122,53 +127,41 @@ function [lineList, lLwCoords] = createListOfLines(coords, triangArr)
     end
 end
 
-function probDist = evaluateZeroSumGame(pointsUtils)
-    % evaluate game
-end
-
+% Find new intersections
 function smootherpoints = smoothenPlane(coords, sLWCoords)
     % create more points x, y % Gets called
-    smootherpoints = coords
+    smootherpoints = coords;
     for i = 1:size(coords, 1) % Runs correctly 10 times
-        y =coords(i,:);
-        x = ['Point ', num2str(y), ' has: '];
-        disp(x);
-        verticalInt = sLWCoords((sLWCoords(:,1)<coords(i,1) & sLWCoords(:,4)>coords(i,1)) | (sLWCoords(:,4)<coords(i,1) & sLWCoords(:,1)>coords(i,1)), :);
-        %disp(verticalInt);
+        verticalInt = sLWCoords((sLWCoords(:,1)<coords(i,1) & sLWCoords(:,4)>coords(i,1)) | ...
+                        (sLWCoords(:,4)<coords(i,1) & sLWCoords(:,1)>coords(i,1)), :);
         % make points from his X same, calculate Y
         for j = 1:size(verticalInt, 1)
             if verticalInt(j,2) == verticalInt(j,5)
-                newVerticalP = [coords(i,1), verticalInt(j,2), -1]
+                newVerticalP = [coords(i,1), verticalInt(j,2), -1];
             else
                 m = (verticalInt(j,2)-verticalInt(j,5)) / (verticalInt(j,1)-verticalInt(j,4));
                 c = verticalInt(j,2) - m * verticalInt(j,1);
-                newVerticalP = [coords(i,1), m * coords(i,1) + c, -1]
+                newVerticalP = [coords(i,1), m * coords(i,1) + c, -1];
             end
             newVerticalP(3) = calculateHeights(verticalInt(j,:), newVerticalP);
             smootherpoints = cat(1, smootherpoints, newVerticalP);
         end
-        horizontalInt = sLWCoords((sLWCoords(:,2)<coords(i,2) & sLWCoords(:,5)>coords(i,2)) | (sLWCoords(:,5)<coords(i,2) & sLWCoords(:,2)>coords(i,2)), :);
-        %disp(horizontalInt);
+        horizontalInt = sLWCoords((sLWCoords(:,2)<coords(i,2) & sLWCoords(:,5)>coords(i,2)) | ...
+                            (sLWCoords(:,5)<coords(i,2) & sLWCoords(:,2)>coords(i,2)), :);
         for j = 1:size(horizontalInt, 1)
             if horizontalInt(j,1) == horizontalInt(j,4)
-                newHorizontalP = [horizontalInt(j,1), coords(i,2), -1]
+                newHorizontalP = [horizontalInt(j,1), coords(i,2), -1];
             else
                 m = (horizontalInt(j,2)-horizontalInt(j,5)) / (horizontalInt(j,1)-horizontalInt(j,4));
                 c = horizontalInt(j,2) - m * horizontalInt(j,1);
-                newHorizontalP = [(coords(i,2) - c) / m , coords(i,2), -1]
+                newHorizontalP = [(coords(i,2) - c) / m , coords(i,2), -1];
             end
             newHorizontalP(3) = calculateHeights(horizontalInt(j,:), newHorizontalP);
             smootherpoints = cat(1, smootherpoints, newHorizontalP);
         end
-        % make points from his X calculate, same Y
-        %newHorizontalP =  [ , coords(i,2)];
-        %smootherpoints = [smootherpoints, ...]
     end
-    %disp(smootherpoints);
     smootherpoints = round(smootherpoints, 4);
-    disp(smootherpoints); % OK
     smootherpoints = unique(smootherpoints, 'rows');
-    disp(smootherpoints);
 end
 
 % Function used to calculate height of points found by intersection
@@ -184,15 +177,24 @@ function calcedHeight = calculateHeights(linePoints, foundPoint)
         norm(linePoints(1:2)-linePoints(4:5)) * (abs(linePoints(3)-linePoints(6)));
 end
 
-% Creates Cartesian product from 
+% Creates Cartesian product from unique x and y coordinates
 function cartesianPoints = makeCartesianProduct(smootherpoints)
     xn = unique(smootherpoints(:, 1), 'rows');
     yn = unique(smootherpoints(:, 2), 'rows');
     cartesianPoints = combvec(xn.', yn.').';
 end
 
+function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints)
+    % for all pointss with -1 (similarly like putting height in runner)
+    
+end
+
 function newPoints = checkHorizontal()
 end
 
 function newPoints = checkVertical()
+end
+
+function probDist = evaluateZeroSumGame(pointsUtils)
+    % evaluate game
 end

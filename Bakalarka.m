@@ -1,10 +1,10 @@
 close all
 clear
 
-runThesis();
+%runThesis();
 
 % Function for 
-function runThesis()
+%function runThesis()
 str = input("Do you want to change default setting? Y or enter: ",'s');
 if ~isempty(str)
     newN = input("Set number of points: "); % check if integer
@@ -27,16 +27,17 @@ triangArr = createTriangulations(r, c);
 [lineList, lLwCoords] = createListOfLines(coords, triangArr);
 sLWCoords = sortrows(lLwCoords, 'ascend');
 smootherpoints = smoothenPlane(coords, sLWCoords); % EACH POINTS NEEDS TRIANGLE TO FIND HEIGHT
-% CARTESIAN PRODUCT NOW
 cartesianPoints = makeCartesianProduct(smootherpoints);
 cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)];
 [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows');
 cartesianPoints(indx, 3) = smootherpoints(:, 3);
+cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints);
 disp(cartesianPoints);
 % FIND BELONG TRIANGLE - for all triangles search remaining points + height
-displayTriangulated(triangArr, heightList, r, c, cartesianPoints, pointsArr);
+displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
 disp("DONE");
-end
+
+%end
 
 % Sets required variables and checks valid values
 function [n, smoothVal, numRuns, height]  = setVariables(newN, newSmooth, newRuns, newHeight)
@@ -81,7 +82,7 @@ function triangArr = createTriangulations(r, c)
 end
 
 % Displays either 2D, 3D, or both
-function displayTriangulated(triangArr, heightList, r, c, cartesianPoints, pointsArr)
+function displayTriangulated(triangArr, heightList, r, c, cartesianPoints)
     % display triangulated place
     str = input("Do you want 2D, 3D, or both visualizations? 2,3, or enter: ", 's');
     if (strcmp(str,"2"))
@@ -92,7 +93,7 @@ function displayTriangulated(triangArr, heightList, r, c, cartesianPoints, point
     elseif (strcmp(str,"3"))    
         trimesh(triangArr, r, c, heightList);
         hold on
-        plot(cartesianPoints(:, 1), cartesianPoints(:, 2), 'r.') % not enough
+        plot3(cartesianPoints(:, 1), cartesianPoints(:, 2), cartesianPoints(:, 3), 'r.') % not enough
         hold off
     else
         triplot(triangArr, r, c);
@@ -188,6 +189,28 @@ function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints
     % for all pointss with -1 (similarly like putting height in runner)
     % go through triangles to see if they belong such as c1,c2,c3 in py
     % calculate height using linspace? like py & assign
+    noHeightIdx = find(cartesianPoints(:,3) == -1)
+    for i = 1:length(noHeightIdx)
+       % triangArr - idx of points in coords
+       for j = 1:length(triangArr)
+            %cartesianPoints(j, 1:2) % x,y
+            p1 = coords(triangArr(j,1), :); % x, y 1
+            p2 = coords(triangArr(j,2), :); % x,y 2
+            p3 = coords(triangArr(j,3), :); % x,y 3
+            chp = cartesianPoints(noHeightIdx(i), 1:2); % x,y checked
+            c1 = (p2(1) - p1(1)) * (chp(2) - p1(2)) - (p2(2) - p1(2)) * (chp(1) - p1(1));
+            c2 = (p3(1) - p2(1)) * (chp(2) - p2(2)) - (p3(2) - p2(2)) * (chp(1) - p2(1));
+            c3 = (p1(1) - p3(1)) * (chp(2) - p3(2)) - (p1(2) - p3(2)) * (chp(1) - p3(1)); % OK
+            %if (c1 <= 0 and c2 <= 0 and c3 <= 0) or (c1 >= 0 and c2 >= 0 and c3 >= 0):
+            %[in, on] = inpolygon([],[],)
+            disp(j);
+            if (c1 <= 0 && c2 <= 0 && c3 <= 0) || (c1 >= 0 && c2 >= 0 && c3 >= 0)
+                cartesianPoints(noHeightIdx(i), 3) = p1(3) * chp(1) + p2(3) * chp(2) + p3(3); % h (z) = coords(triangArr(j,1),1), coords(triangArr(j,2), 2)
+                break % Above needs y = Ax + b 
+            end
+       end    
+    end
+    
 end
 
 function newPoints = checkHorizontal()

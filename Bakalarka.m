@@ -201,11 +201,14 @@ function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints
             c1 = (p2(1) - p1(1)) * (chp(2) - p1(2)) - (p2(2) - p1(2)) * (chp(1) - p1(1));
             c2 = (p3(1) - p2(1)) * (chp(2) - p2(2)) - (p3(2) - p2(2)) * (chp(1) - p2(1));
             c3 = (p1(1) - p3(1)) * (chp(2) - p3(2)) - (p1(2) - p3(2)) * (chp(1) - p3(1)); % OK
-            %if (c1 <= 0 and c2 <= 0 and c3 <= 0) or (c1 >= 0 and c2 >= 0 and c3 >= 0):
-            %[in, on] = inpolygon([],[],)
             disp(j);
             if (c1 <= 0 && c2 <= 0 && c3 <= 0) || (c1 >= 0 && c2 >= 0 && c3 >= 0)
-                cartesianPoints(noHeightIdx(i), 3) = p1(3) * chp(1) + p2(3) * chp(2) + p3(3); % h (z) = coords(triangArr(j,1),1), coords(triangArr(j,2), 2)
+                dd1 = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3)));
+                ds1 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+                dd2 = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
+                ds2 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+                cartesianPoints(noHeightIdx(i), 3) = p1(3) + dd1 / ds1 * (chp(2) - p1(2)) ...
+                                                        - dd2 / ds2 * (chp(1) - p1(1));
                 break % Above needs y = Ax + b 
             end
        end    

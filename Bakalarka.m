@@ -203,7 +203,7 @@ function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints
             c3 = (p1(1) - p3(1)) * (chp(2) - p3(2)) - (p1(2) - p3(2)) * (chp(1) - p3(1)); % OK
             disp(j);
             if (c1 <= 0 && c2 <= 0 && c3 <= 0) || (c1 >= 0 && c2 >= 0 && c3 >= 0)
-                dd1 = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3)));
+                dd1 = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
                 ds1 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
                 dd2 = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
                 ds2 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
@@ -220,6 +220,30 @@ function newPoints = checkHorizontal()
 end
 
 function newPoints = checkVertical()
+end
+
+% Calculate complex parts for triangle equations ahead to save number of
+% computations later
+function triangleEquations = calculateTriangEq(triangArr, coords)
+    % maybe also c1,c2,c3 parts
+    masterEquations = zeros(length(triangArr), 4)
+    cTriangleVariables = zeros(length(triangArr), 6)
+    for i = 1:length(triangArr)
+        cTriangleVariables(j,1) = (p2(1) - p1(1));
+        cTriangleVariables(j,2) = (p2(2) - p1(2));
+        cTriangleVariables(j,3) = (p3(1) - p2(1));
+        cTriangleVariables(j,4) = (p3(2) - p2(2));
+        cTriangleVariables(j,5) = (p1(1) - p3(1));
+        cTriangleVariables(j,6) = (p1(2) - p3(2));
+
+        p1 = coords(triangArr(j,1), :); % x,y 1
+        p2 = coords(triangArr(j,2), :); % x,y 2
+        p3 = coords(triangArr(j,3), :); % x,y 3
+        masterEquations(j,1) = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
+        masterEquations(j,2) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+        masterEquations(j,3) = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
+        masterEquations(j,4) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+    end
 end
 
 function probDist = evaluateZeroSumGame(pointsUtils)

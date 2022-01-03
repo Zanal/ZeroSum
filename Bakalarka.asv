@@ -31,10 +31,13 @@ cartesianPoints = makeCartesianProduct(smootherpoints);
 cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)];
 [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows');
 cartesianPoints(indx, 3) = smootherpoints(:, 3);
-cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints);
-disp(cartesianPoints);
+tic
+[cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coords);
+cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints, triangleEquations, cTriangleVariables);
+toc;
+%disp(cartesianPoints);
 % FIND BELONG TRIANGLE - for all triangles search remaining points + height
-displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
+%displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
 disp("DONE");
 
 %end
@@ -185,30 +188,22 @@ function cartesianPoints = makeCartesianProduct(smootherpoints)
     cartesianPoints = combvec(xn.', yn.').';
 end
 
-function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints)
-    % for all pointss with -1 (similarly like putting height in runner)
-    % go through triangles to see if they belong such as c1,c2,c3 in py
-    % calculate height using linspace? like py & assign
-    noHeightIdx = find(cartesianPoints(:,3) == -1)
+% Using pre-calculated equations find triangle belonging to each unassigned
+% point and as
+function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints, triangleEquations, cTriangleVariables)
+    noHeightIdx = find(cartesianPoints(:,3) == -1);
     for i = 1:length(noHeightIdx)
-       % triangArr - idx of points in coords
        for j = 1:length(triangArr)
-            %cartesianPoints(j, 1:2) % x,y
             p1 = coords(triangArr(j,1), :); % x, y 1
             p2 = coords(triangArr(j,2), :); % x,y 2
             p3 = coords(triangArr(j,3), :); % x,y 3
             chp = cartesianPoints(noHeightIdx(i), 1:2); % x,y checked
-            c1 = (p2(1) - p1(1)) * (chp(2) - p1(2)) - (p2(2) - p1(2)) * (chp(1) - p1(1));
-            c2 = (p3(1) - p2(1)) * (chp(2) - p2(2)) - (p3(2) - p2(2)) * (chp(1) - p2(1));
-            c3 = (p1(1) - p3(1)) * (chp(2) - p3(2)) - (p1(2) - p3(2)) * (chp(1) - p3(1)); % OK
-            disp(j);
+            c1 = cTriangleVariables(j,1) * (chp(2) - p1(2)) - cTriangleVariables(j,2) * (chp(1) - p1(1));
+            c2 = cTriangleVariables(j,3) * (chp(2) - p2(2)) - cTriangleVariables(j,4) * (chp(1) - p2(1));
+            c3 = cTriangleVariables(j,5) * (chp(2) - p3(2)) - cTriangleVariables(j,6) * (chp(1) - p3(1)); % OK
             if (c1 <= 0 && c2 <= 0 && c3 <= 0) || (c1 >= 0 && c2 >= 0 && c3 >= 0)
-                dd1 = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
-                ds1 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
-                dd2 = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
-                ds2 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
-                cartesianPoints(noHeightIdx(i), 3) = p1(3) + dd1 / ds1 * (chp(2) - p1(2)) ...
-                                                        - dd2 / ds2 * (chp(1) - p1(1));
+                cartesianPoints(noHeightIdx(i), 3) = p1(3) + triangleEquations(j,1) / triangleEquations(j,2) ...
+                        * (chp(2) - p1(2)) - triangleEquations(j,3) / triangleEquations(j,4) * (chp(1) - p1(1));                
                 break % Above needs y = Ax + b 
             end
        end    
@@ -222,18 +217,26 @@ end
 function newPoints = checkVertical()
 end
 
-function triangleEquations = calculateTriangEq(triangArr, coords)
+% Calculate complex parts for triangle equations ahead to save number of
+% computations later
+function [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coords)
     % maybe also c1,c2,c3 parts
-    masterEquations = zeros(length(triangArr), 4)
-    cTriangleVariables = 
+    triangleEquations = zeros(length(triangArr), 4);
+    cTriangleVariables = zeros(length(triangArr), 6);
     for i = 1:length(triangArr)
-        p1 = coords(triangArr(j,1), :); % x,y 1
-        p2 = coords(triangArr(j,2), :); % x,y 2
-        p3 = coords(triangArr(j,3), :); % x,y 3
-        masterEquations(j,1) = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
-        masterEquations(j,2) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
-        masterEquations(j,3) = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
-        masterEquations(j,4) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+        p1 = coords(triangArr(i,1), :); % x,y 1
+        p2 = coords(triangArr(i,2), :); % x,y 2
+        p3 = coords(triangArr(i,3), :); % x,y 3        
+        cTriangleVariables(i,1) = (p2(1) - p1(1));
+        cTriangleVariables(i,2) = (p2(2) - p1(2));
+        cTriangleVariables(i,3) = (p3(1) - p2(1));
+        cTriangleVariables(i,4) = (p3(2) - p2(2));
+        cTriangleVariables(i,5) = (p1(1) - p3(1));
+        cTriangleVariables(i,6) = (p1(2) - p3(2));
+        triangleEquations(i,1) = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
+        triangleEquations(i,2) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+        triangleEquations(i,3) = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
+        triangleEquations(i,4) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
     end
 end
 

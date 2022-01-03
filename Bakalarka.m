@@ -1,10 +1,10 @@
 close all
 clear
 
-%runThesis();
+runThesis();
 
 % Function for 
-%function runThesis()
+function runThesis()
 str = input("Do you want to change default setting? Y or enter: ",'s');
 if ~isempty(str)
     newN = input("Set number of points: "); % check if integer
@@ -31,14 +31,16 @@ cartesianPoints = makeCartesianProduct(smootherpoints);
 cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)];
 [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows');
 cartesianPoints(indx, 3) = smootherpoints(:, 3);
-cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints);
-disp(cartesianPoints);
-% FIND BELONG TRIANGLE - for all triangles search remaining points + height
+tic
+[cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coords);
+cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints, triangleEquations, cTriangleVariables);
+toc;
+%disp(cartesianPoints);
 displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
 disp("DONE");
+end
 
-%end
-
+% OK
 % Sets required variables and checks valid values
 function [n, smoothVal, numRuns, height]  = setVariables(newN, newSmooth, newRuns, newHeight)
     n = checkValidity(newN, 4);
@@ -47,15 +49,19 @@ function [n, smoothVal, numRuns, height]  = setVariables(newN, newSmooth, newRun
     height = checkValidity(newHeight, 0);
 end
 
+% OK
 % Check input validity - NEED TO ADD STRINGS/FLOATS ...
 function checkedValue = checkValidity(valueWanted, threshold)
     if valueWanted <= threshold
+       tooLow = ["Value too low setting to ", threshold];
+       disp(tooLow)
        checkedValue = threshold;
     else
        checkedValue = valueWanted;
     end
 end
 
+% OK - testing in place 76, 79 [comment for random]
 % Returns list of point heights with a 2D array with them marked
 function [pointsArr, heightList] = generateEnvironment(smoothVal, n, height)
     % create appropriate 2d array
@@ -67,20 +73,21 @@ function [pointsArr, heightList] = generateEnvironment(smoothVal, n, height)
         (nIdx - nRC + 2):(nIdx - 1)]; % last row
     cornerIdx = [1, nRC, nIdx - nRC + 1, nIdx];
     idx = sort([noCornerIdx(randperm(numel(noCornerIdx), n - 4)), cornerIdx]); % Matlab indexes from 1, maybe sort maybe no
-    idx = [3,7,8,12,13,19, cornerIdx]; % testing crosses
-    idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx]; % TESTING
+    %idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx]; % TESTING
     heightRange = height + 1;
     heightList = randperm(heightRange, n) - 1;
-    heightList = [4,41,34,15,44,1,19,16,32,33]; % TESTING
+    %heightList = [4,41,34,15,44,1,19,16,32,33]; % TESTING
     pointsArr(idx) = heightList; % can be 0
 end
 
+% OK
 % Returns delaunay triangulation using delaunay library
 function triangArr = createTriangulations(r, c)
     % create triangulation array from n and smoothVal
     triangArr = delaunay(r, c);
 end
 
+% OK
 % Displays either 2D, 3D, or both
 function displayTriangulated(triangArr, heightList, r, c, cartesianPoints)
     % display triangulated place
@@ -108,6 +115,7 @@ function displayTriangulated(triangArr, heightList, r, c, cartesianPoints)
     end
 end
 
+% OK
 % Function returns lineList = list of lines with coords indices and
 % lLwCoords = array of line coordinations (x1, y1, x2, y2)
 function [lineList, lLwCoords] = createListOfLines(coords, triangArr)
@@ -128,6 +136,7 @@ function [lineList, lLwCoords] = createListOfLines(coords, triangArr)
     end
 end
 
+% OK
 % Find new intersections
 function smootherpoints = smoothenPlane(coords, sLWCoords)
     % create more points x, y % Gets called
@@ -165,6 +174,7 @@ function smootherpoints = smoothenPlane(coords, sLWCoords)
     smootherpoints = unique(smootherpoints, 'rows');
 end
 
+% OK
 % Function used to calculate height of points found by intersection
 function calcedHeight = calculateHeights(linePoints, foundPoint)
     if linePoints(3) < linePoints(6)
@@ -178,6 +188,7 @@ function calcedHeight = calculateHeights(linePoints, foundPoint)
         norm(linePoints(1:2)-linePoints(4:5)) * (abs(linePoints(3)-linePoints(6)));
 end
 
+% OK
 % Creates Cartesian product from unique x and y coordinates
 function cartesianPoints = makeCartesianProduct(smootherpoints)
     xn = unique(smootherpoints(:, 1), 'rows');
@@ -185,30 +196,22 @@ function cartesianPoints = makeCartesianProduct(smootherpoints)
     cartesianPoints = combvec(xn.', yn.').';
 end
 
-function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints)
-    % for all pointss with -1 (similarly like putting height in runner)
-    % go through triangles to see if they belong such as c1,c2,c3 in py
-    % calculate height using linspace? like py & assign
-    noHeightIdx = find(cartesianPoints(:,3) == -1)
+% Using pre-calculated equations find triangle belonging to each unassigned
+% point and assign them height
+function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints, triangleEquations, cTriangleVariables)
+    noHeightIdx = find(cartesianPoints(:,3) == -1);
     for i = 1:length(noHeightIdx)
-       % triangArr - idx of points in coords
        for j = 1:length(triangArr)
-            %cartesianPoints(j, 1:2) % x,y
             p1 = coords(triangArr(j,1), :); % x, y 1
             p2 = coords(triangArr(j,2), :); % x,y 2
             p3 = coords(triangArr(j,3), :); % x,y 3
             chp = cartesianPoints(noHeightIdx(i), 1:2); % x,y checked
-            c1 = (p2(1) - p1(1)) * (chp(2) - p1(2)) - (p2(2) - p1(2)) * (chp(1) - p1(1));
-            c2 = (p3(1) - p2(1)) * (chp(2) - p2(2)) - (p3(2) - p2(2)) * (chp(1) - p2(1));
-            c3 = (p1(1) - p3(1)) * (chp(2) - p3(2)) - (p1(2) - p3(2)) * (chp(1) - p3(1)); % OK
-            disp(j);
+            c1 = cTriangleVariables(j,1) * (chp(2) - p1(2)) - cTriangleVariables(j,2) * (chp(1) - p1(1));
+            c2 = cTriangleVariables(j,3) * (chp(2) - p2(2)) - cTriangleVariables(j,4) * (chp(1) - p2(1));
+            c3 = cTriangleVariables(j,5) * (chp(2) - p3(2)) - cTriangleVariables(j,6) * (chp(1) - p3(1)); % OK
             if (c1 <= 0 && c2 <= 0 && c3 <= 0) || (c1 >= 0 && c2 >= 0 && c3 >= 0)
-                dd1 = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
-                ds1 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
-                dd2 = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
-                ds2 = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
-                cartesianPoints(noHeightIdx(i), 3) = p1(3) + dd1 / ds1 * (chp(2) - p1(2)) ...
-                                                        - dd2 / ds2 * (chp(1) - p1(1));
+                cartesianPoints(noHeightIdx(i), 3) = p1(3) + triangleEquations(j,1) / triangleEquations(j,2) ...
+                        * (chp(2) - p1(2)) - triangleEquations(j,3) / triangleEquations(j,4) * (chp(1) - p1(1));                
                 break % Above needs y = Ax + b 
             end
        end    
@@ -216,36 +219,39 @@ function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints
     
 end
 
+% Possible usage in search empty now
 function newPoints = checkHorizontal()
 end
 
+% Possible usage in search empty now
 function newPoints = checkVertical()
 end
 
 % Calculate complex parts for triangle equations ahead to save number of
 % computations later
-function triangleEquations = calculateTriangEq(triangArr, coords)
+function [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coords)
     % maybe also c1,c2,c3 parts
-    masterEquations = zeros(length(triangArr), 4)
-    cTriangleVariables = zeros(length(triangArr), 6)
+    triangleEquations = zeros(length(triangArr), 4);
+    cTriangleVariables = zeros(length(triangArr), 6);
     for i = 1:length(triangArr)
-        cTriangleVariables(j,1) = (p2(1) - p1(1));
-        cTriangleVariables(j,2) = (p2(2) - p1(2));
-        cTriangleVariables(j,3) = (p3(1) - p2(1));
-        cTriangleVariables(j,4) = (p3(2) - p2(2));
-        cTriangleVariables(j,5) = (p1(1) - p3(1));
-        cTriangleVariables(j,6) = (p1(2) - p3(2));
-
-        p1 = coords(triangArr(j,1), :); % x,y 1
-        p2 = coords(triangArr(j,2), :); % x,y 2
-        p3 = coords(triangArr(j,3), :); % x,y 3
-        masterEquations(j,1) = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
-        masterEquations(j,2) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
-        masterEquations(j,3) = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
-        masterEquations(j,4) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+        p1 = coords(triangArr(i,1), :); % x,y 1
+        p2 = coords(triangArr(i,2), :); % x,y 2
+        p3 = coords(triangArr(i,3), :); % x,y 3        
+        cTriangleVariables(i,1) = (p2(1) - p1(1));
+        cTriangleVariables(i,2) = (p2(2) - p1(2));
+        cTriangleVariables(i,3) = (p3(1) - p2(1));
+        cTriangleVariables(i,4) = (p3(2) - p2(2));
+        cTriangleVariables(i,5) = (p1(1) - p3(1));
+        cTriangleVariables(i,6) = (p1(2) - p3(2));
+        triangleEquations(i,1) = ((p2(1)-p1(1))*(p3(3)-p1(3)) - (p3(1)-p1(1))*(p2(3)-p1(3))); % function for all triangles to avoid repetative calculation
+        triangleEquations(i,2) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
+        triangleEquations(i,3) = ((p2(2)-p1(2))*(p3(3)-p1(3)) - (p3(2)-p1(2))*(p2(3)-p1(3)));
+        triangleEquations(i,4) = ((p2(1)-p1(1))*(p3(2)-p1(2)) - (p3(1)-p1(1))*(p2(2)-p1(2)));
     end
 end
 
+% Calculate game probabilities
 function probDist = evaluateZeroSumGame(pointsUtils)
     % evaluate game
+    % TODO
 end

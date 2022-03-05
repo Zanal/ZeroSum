@@ -251,7 +251,35 @@ function [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, 
 end
 
 % Calculate game probabilities
-function probDist = evaluateZeroSumGame(pointsUtils)
+function probDist = evaluateZeroSumGame(cartesianPoints)
+    matrixSize = groupcounts(cartesianPoints(:, 2));
+    occsX = matrixSize(1); % 8
+    occsY = size(cartesianPoints, 1) / occs; % 7
+
+    A = reshape(cartesianPoints(:, 3), [occsY, occsX]); % create matrix to fix numbers (maybe switch dimentions)
+    f = cat(1, zeros(occsX, 1),1);
+    Am = cat(2, A, -ones(occsY, 1));
+    b = zeros(occsY, 1);
+    Aeq = cat(1, ones(occsX, 1), 0);
+    beq = 1;
+    lb = zeros(occsX, 1);
+    ub = [];
+
+    res = linprog(f, Am, b, Aeq, beq, lb, ub);
+    probDist = res(occsX, 1);
+    utilVal = res(end, 1);
+
+    ft = cat(1, zeros(occsY, 1),-1); % 't' for two
+    An = cat(2, transpose(A), -ones(occsX, 1));
+    bt = zeros(occsX, 1);
+    Aeqt = cat(1, ones(occsY, 1), 0);
+    beqt = 1;
+    lbt = zeros(occsY, 1);
+    ubt = [];
+    rest = linprog(f, -Am, -b, Aeq, beq, lb, ub);
+    probDistt = rest(occsY, 1);
+    utilValt = rest(end, 1);
+    
     % evaluate game
     % TODO
     % maybe utility matrix needed

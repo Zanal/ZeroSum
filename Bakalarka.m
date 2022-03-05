@@ -1,10 +1,10 @@
 close all
 clear
 
-runThesis();
+%runThesis();
 
 % Function for 
-function runThesis()
+%function runThesis()
 str = input("Do you want to change default setting? Y or enter: ",'s');
 if ~isempty(str)
     newN = input("Set number of points: "); % check if integer
@@ -23,22 +23,32 @@ end
 bools = pointsArr > -1;
 coords = [r, c, pointsArr(bools)]; % x,y,z
 
-triangArr = createTriangulations(r, c);
-[lineList, lLwCoords] = createListOfLines(coords, triangArr);
+triangArr = createTriangulations(r, c); % only ones
+[lineList, lLwCoords] = createListOfLines(coords, triangArr); % only ones
 sLWCoords = sortrows(lLwCoords, 'ascend');
+
+% for i = 1:numRuns
+% update cooords as below:
+% if i != 1
+%   coords = cartesianPoints;
+% end
+% all tab
 smootherpoints = smoothenPlane(coords, sLWCoords); % EACH POINTS NEEDS TRIANGLE TO FIND HEIGHT
 cartesianPoints = makeCartesianProduct(smootherpoints);
 cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)];
 [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows');
 cartesianPoints(indx, 3) = smootherpoints(:, 3);
-tic
+tic % timer
 [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coords);
 cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints, triangleEquations, cTriangleVariables);
+evaluateZeroSumGame(cartesianPoints);
 toc;
 %disp(cartesianPoints);
 displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
+% STEP FUNCTION - to show image and then new round
+%end
 disp("DONE");
-end
+%end % thesis function (empty workspace)
 
 % OK
 % Sets required variables and checks valid values
@@ -73,10 +83,10 @@ function [pointsArr, heightList] = generateEnvironment(smoothVal, n, height)
         (nIdx - nRC + 2):(nIdx - 1)]; % last row
     cornerIdx = [1, nRC, nIdx - nRC + 1, nIdx];
     idx = sort([noCornerIdx(randperm(numel(noCornerIdx), n - 4)), cornerIdx]); % Matlab indexes from 1, maybe sort maybe no
-    %idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx]; % TESTING
+    idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx]; % TESTING
     heightRange = height + 1;
     heightList = randperm(heightRange, n) - 1;
-    %heightList = [4,41,34,15,44,1,19,16,32,33]; % TESTING
+    heightList = [4,41,34,15,44,1,19,16,32,33]; % TESTING
     pointsArr(idx) = heightList; % can be 0
 end
 
@@ -254,32 +264,35 @@ end
 function probDist = evaluateZeroSumGame(cartesianPoints)
     matrixSize = groupcounts(cartesianPoints(:, 2));
     occsX = matrixSize(1); % 8
-    occsY = size(cartesianPoints, 1) / occs; % 7
-
+    occsY = size(cartesianPoints, 1) / occsX; % 7
     A = reshape(cartesianPoints(:, 3), [occsY, occsX]); % create matrix to fix numbers (maybe switch dimentions)
+    
+    % Alice
     f = cat(1, zeros(occsX, 1),1);
     Am = cat(2, A, -ones(occsY, 1));
     b = zeros(occsY, 1);
-    Aeq = cat(1, ones(occsX, 1), 0);
+    Aeq = cat(1, ones(occsX, 1), 0)';
     beq = 1;
     lb = zeros(occsX, 1);
     ub = [];
 
-    res = linprog(f, Am, b, Aeq, beq, lb, ub);
-    probDist = res(occsX, 1);
+    res = linprog(f, Am, b, Aeq, beq, lb, ub)
+    probDist = res(1:occsX, 1);
     utilVal = res(end, 1);
 
+    % Bob
     ft = cat(1, zeros(occsY, 1),-1); % 't' for two
     An = cat(2, transpose(A), -ones(occsX, 1));
     bt = zeros(occsX, 1);
-    Aeqt = cat(1, ones(occsY, 1), 0);
+    Aeqt = cat(1, ones(occsY, 1), 0)'
     beqt = 1;
     lbt = zeros(occsY, 1);
     ubt = [];
-    rest = linprog(f, -Am, -b, Aeq, beq, lb, ub);
-    probDistt = rest(occsY, 1);
+
+    rest = linprog(-f, -Am, -b, Aeq, beq, lb, ub)
+    probDistt = rest(1:occsY, 1);
     utilValt = rest(end, 1);
-    
+
     % evaluate game
     % TODO
     % maybe utility matrix needed

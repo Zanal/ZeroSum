@@ -1,4 +1,5 @@
 close all
+format short
 clear
 
 %runThesis();
@@ -15,7 +16,7 @@ if ~isempty(str)
     [n, smoothVal, numRuns, height] = setVariables(newN, newSmooth, newRuns, newHeight);
     clear newN newSmooth newRuns; % was in local scope
 else
-    [n, smoothVal, numRuns, height] = setVariables(10, 0.2, 5, 50); % load from text file
+    [n, smoothVal, numRuns, height] = setVariables(10, 0.2, 10, 500); % load from text file
 end
 
 [pointsArr, heightList] = generateEnvironment(smoothVal, n, height);
@@ -26,27 +27,29 @@ coords = [r, c, pointsArr(bools)]; % x,y,z
 triangArr = createTriangulations(r, c); % only ones
 [lineList, lLwCoords] = createListOfLines(coords, triangArr); % only ones
 sLWCoords = sortrows(lLwCoords, 'ascend');
-
-% for i = 1:numRuns
+coordsForEqs = coords;
+for i = 1:numRuns
 % update cooords as below:
-% if i != 1
-%   coords = cartesianPoints;
-% end
+    if i ~= 1
+        coords = cartesianPoints;
+    end
 % all tab
 smootherpoints = smoothenPlane(coords, sLWCoords); % EACH POINTS NEEDS TRIANGLE TO FIND HEIGHT
 cartesianPoints = makeCartesianProduct(smootherpoints);
-cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)];
-[~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows');
-cartesianPoints(indx, 3) = smootherpoints(:, 3);
+cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)]; % x y -1
+[~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows'); % assign height to points already counted
+cartesianPoints(indx, 3) = smootherpoints(:, 3); % moc nezaokrouhlene
 tic % timer
-[cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coords);
-cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints, triangleEquations, cTriangleVariables);
+    if i == 1
+        [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coordsForEqs);
+    end
+cartesianPoints = calculateCPHeights(triangArr, coordsForEqs, cartesianPoints, triangleEquations, cTriangleVariables);
 evaluateZeroSumGame(cartesianPoints);
 toc;
 %disp(cartesianPoints);
-displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
+%displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
 % STEP FUNCTION - to show image and then new round
-%end
+end
 disp("DONE");
 %end % thesis function (empty workspace)
 
@@ -86,7 +89,7 @@ function [pointsArr, heightList] = generateEnvironment(smoothVal, n, height)
     idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx]; % TESTING
     heightRange = height + 1;
     heightList = randperm(heightRange, n) - 1;
-    heightList = [4,41,34,15,44,1,19,16,32,33]; % TESTING
+    heightList = [40,410,340,150,440,10,190,160,320,330]; % TESTING
     pointsArr(idx) = heightList; % can be 0
 end
 
@@ -152,16 +155,20 @@ function smootherpoints = smoothenPlane(coords, sLWCoords)
     % create more points x, y % Gets called
     smootherpoints = coords;
     for i = 1:size(coords, 1) % Runs correctly 10 times
+        %thisPoints = ["I am point:", coords(i, 1:2)]; % DEBUGGING
+        %disp(thisPoints); % DEBUGGING
         verticalInt = sLWCoords((sLWCoords(:,1)<coords(i,1) & sLWCoords(:,4)>coords(i,1)) | ...
                         (sLWCoords(:,4)<coords(i,1) & sLWCoords(:,1)>coords(i,1)), :);
         % make points from his X same, calculate Y
         for j = 1:size(verticalInt, 1)
             if verticalInt(j,2) == verticalInt(j,5)
                 newVerticalP = [coords(i,1), verticalInt(j,2), -1];
+                %fprintf("In Vertical 1 I found: %d\n", newVerticalP); % DEBUGGING
             else
                 m = (verticalInt(j,2)-verticalInt(j,5)) / (verticalInt(j,1)-verticalInt(j,4));
                 c = verticalInt(j,2) - m * verticalInt(j,1);
                 newVerticalP = [coords(i,1), m * coords(i,1) + c, -1];
+                %fprintf("In Vertical 2 I found: %d\n", newVerticalP); % DEBUGGING
             end
             newVerticalP(3) = calculateHeights(verticalInt(j,:), newVerticalP);
             smootherpoints = cat(1, smootherpoints, newVerticalP);
@@ -171,20 +178,24 @@ function smootherpoints = smoothenPlane(coords, sLWCoords)
         for j = 1:size(horizontalInt, 1)
             if horizontalInt(j,1) == horizontalInt(j,4)
                 newHorizontalP = [horizontalInt(j,1), coords(i,2), -1];
+                %fprintf("In Horizontal 1 I found: %d\n", newHorizontalP); % DEBUGGING
             else
                 m = (horizontalInt(j,2)-horizontalInt(j,5)) / (horizontalInt(j,1)-horizontalInt(j,4));
                 c = horizontalInt(j,2) - m * horizontalInt(j,1);
                 newHorizontalP = [(coords(i,2) - c) / m , coords(i,2), -1];
+                %fprintf("In Horizontal 2 I found: %d\n", newHorizontalP); % DEBUGGING
             end
             newHorizontalP(3) = calculateHeights(horizontalInt(j,:), newHorizontalP);
             smootherpoints = cat(1, smootherpoints, newHorizontalP);
         end
     end
     smootherpoints = round(smootherpoints, 4);
-    smootherpoints = unique(smootherpoints, 'rows');
+    [~,ia,~] = unique(smootherpoints(:,1:2),'rows');
+    smootherpoints = smootherpoints(ia, :);
+    %smootherpoints = unique(smootherpoints, 'rows');
 end
 
-% OK
+% OK - CHECK
 % Function used to calculate height of points found by intersection
 function calcedHeight = calculateHeights(linePoints, foundPoint)
     if linePoints(3) < linePoints(6)
@@ -196,6 +207,7 @@ function calcedHeight = calculateHeights(linePoints, foundPoint)
     end
     calcedHeight = smallerH + norm(foundPoint(1:2)-smallerCoords) / ...
         norm(linePoints(1:2)-linePoints(4:5)) * (abs(linePoints(3)-linePoints(6)));
+    %fprintf("Height calulated for found points: %d\n", calcedHeight);
 end
 
 % OK
@@ -219,9 +231,22 @@ function cartesianPoints = calculateCPHeights(triangArr, coords, cartesianPoints
             c1 = cTriangleVariables(j,1) * (chp(2) - p1(2)) - cTriangleVariables(j,2) * (chp(1) - p1(1));
             c2 = cTriangleVariables(j,3) * (chp(2) - p2(2)) - cTriangleVariables(j,4) * (chp(1) - p2(1));
             c3 = cTriangleVariables(j,5) * (chp(2) - p3(2)) - cTriangleVariables(j,6) * (chp(1) - p3(1)); % OK
+            debuging = [c1,c2,c3]; % DEBUGGING
+            ps = 7; % DEBUGGING
+            if c1 == 0
+                ps = [p1,p2,p3,chp]; % DEBUGGING
+                thisCalc = [ps, debuging]; % DEBUGGING
+                %disp(thisCalc); % DEBUGGING
+            end
+            % TODO
+            % if nula -> lezi na primce -> vypocitat vysku pomoci !!!
+            % calculateHeights !!!
+            %thisCalc = [ps, debuging]; % DEBUGGING
+            %disp(thisCalc); % DEBUGGING
             if (c1 <= 0 && c2 <= 0 && c3 <= 0) || (c1 >= 0 && c2 >= 0 && c3 >= 0)
                 cartesianPoints(noHeightIdx(i), 3) = p1(3) + triangleEquations(j,1) / triangleEquations(j,2) ...
-                        * (chp(2) - p1(2)) - triangleEquations(j,3) / triangleEquations(j,4) * (chp(1) - p1(1));                
+                        * (chp(2) - p1(2)) - triangleEquations(j,3) / triangleEquations(j,4) * (chp(1) - p1(1));
+                %fprintf("Height calulated for CP: %d\n", cartesianPoints(noHeightIdx(i), 3));
                 break % Above needs y = Ax + b 
             end
        end    
@@ -241,6 +266,7 @@ end
 % computations later
 function [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coords)
     % maybe also c1,c2,c3 parts
+    disp("I get called");
     triangleEquations = zeros(length(triangArr), 4);
     cTriangleVariables = zeros(length(triangArr), 6);
     for i = 1:length(triangArr)
@@ -265,6 +291,9 @@ function probDist = evaluateZeroSumGame(cartesianPoints)
     matrixSize = groupcounts(cartesianPoints(:, 2));
     occsX = matrixSize(1); % 8
     occsY = size(cartesianPoints, 1) / occsX; % 7
+    %disp(matrixSize);
+    disp(occsX);
+    disp(occsY);
     A = reshape(cartesianPoints(:, 3), [occsY, occsX]); % create matrix to fix numbers (maybe switch dimentions)
     
     % Alice
@@ -276,21 +305,21 @@ function probDist = evaluateZeroSumGame(cartesianPoints)
     lb = zeros(occsX, 1);
     ub = [];
 
-    res = linprog(f, Am, b, Aeq, beq, lb, ub)
+    res = linprog(f, Am, b, Aeq, beq, lb, ub);
     probDist = res(1:occsX, 1);
     utilVal = res(end, 1);
 
     % Bob
-    ft = cat(1, zeros(occsY, 1),-1); % 't' for two
+    ft = cat(1, zeros(occsY, 1),1); % 't' for two
     An = cat(2, transpose(A), -ones(occsX, 1));
     bt = zeros(occsX, 1);
-    Aeqt = cat(1, ones(occsY, 1), 0)'
+    Aeqt = cat(1, ones(occsY, 1), 0)';
     beqt = 1;
     lbt = zeros(occsY, 1);
     ubt = [];
 
-    rest = linprog(-f, -Am, -b, Aeq, beq, lb, ub)
-    probDistt = rest(1:occsY, 1);
+    rest = linprog(-ft, -An, bt, Aeqt, beqt, lbt, ubt);
+    probDistt = rest(1:occsY, 1); %%%% ERROR
     utilValt = rest(end, 1);
 
     % evaluate game

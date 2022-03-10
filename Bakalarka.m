@@ -16,7 +16,7 @@ if ~isempty(str)
     [n, smoothVal, numRuns, height] = setVariables(newN, newSmooth, newRuns, newHeight);
     clear newN newSmooth newRuns; % was in local scope
 else
-    [n, smoothVal, numRuns, height] = setVariables(10, 0.2, 10, 500); % load from text file
+    [n, smoothVal, numRuns, height] = setVariables(10, 0.2, 7, 500); % load from text file
 end
 
 [pointsArr, heightList] = generateEnvironment(smoothVal, n, height);
@@ -28,27 +28,35 @@ triangArr = createTriangulations(r, c); % only ones
 [lineList, lLwCoords] = createListOfLines(coords, triangArr); % only ones
 sLWCoords = sortrows(lLwCoords, 'ascend');
 coordsForEqs = coords;
-for i = 1:numRuns
+
+for i = 1:4 %numRuns
 % update cooords as below:
     if i ~= 1
         coords = cartesianPoints;
     end
 % all tab
+tic
 smootherpoints = smoothenPlane(coords, sLWCoords); % EACH POINTS NEEDS TRIANGLE TO FIND HEIGHT
 cartesianPoints = makeCartesianProduct(smootherpoints);
 cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)]; % x y -1
 [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows'); % assign height to points already counted
 cartesianPoints(indx, 3) = smootherpoints(:, 3); % moc nezaokrouhlene
-tic % timer
+toc
+%tic % timer
     if i == 1
         [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coordsForEqs);
     end
 cartesianPoints = calculateCPHeights(triangArr, coordsForEqs, cartesianPoints, triangleEquations, cTriangleVariables);
-evaluateZeroSumGame(cartesianPoints);
-toc;
+[probDist, probDistt] = evaluateZeroSumGame(cartesianPoints);
+%toc;
 %disp(cartesianPoints);
 %displayTriangulated(triangArr, heightList, r, c, cartesianPoints);
 % STEP FUNCTION - to show image and then new round
+stairs(probDist, 'LineWidth',2,'Marker','d','MarkerFaceColor','c');
+hold on
+stairs(probDistt, 'LineWidth',2,'Marker','d','MarkerFaceColor','r');
+hold off
+
 end
 disp("DONE");
 %end % thesis function (empty workspace)
@@ -159,8 +167,13 @@ function smootherpoints = smoothenPlane(coords, sLWCoords)
         %disp(thisPoints); % DEBUGGING
         verticalInt = sLWCoords((sLWCoords(:,1)<coords(i,1) & sLWCoords(:,4)>coords(i,1)) | ...
                         (sLWCoords(:,4)<coords(i,1) & sLWCoords(:,1)>coords(i,1)), :);
+        %disp(verticalInt);
         % make points from his X same, calculate Y
         for j = 1:size(verticalInt, 1)
+            if i>1 && coords(i-1,1) == coords(i,1)
+                %disp("Skipped")
+                break
+            end
             if verticalInt(j,2) == verticalInt(j,5)
                 newVerticalP = [coords(i,1), verticalInt(j,2), -1];
                 %fprintf("In Vertical 1 I found: %d\n", newVerticalP); % DEBUGGING
@@ -175,7 +188,12 @@ function smootherpoints = smoothenPlane(coords, sLWCoords)
         end
         horizontalInt = sLWCoords((sLWCoords(:,2)<coords(i,2) & sLWCoords(:,5)>coords(i,2)) | ...
                             (sLWCoords(:,5)<coords(i,2) & sLWCoords(:,2)>coords(i,2)), :);
+        %disp(horizontalInt);
         for j = 1:size(horizontalInt, 1)
+            if i>1 && coords(i-1,2) == coords(i,2)
+                %disp("Skipped")
+                break
+            end
             if horizontalInt(j,1) == horizontalInt(j,4)
                 newHorizontalP = [horizontalInt(j,1), coords(i,2), -1];
                 %fprintf("In Horizontal 1 I found: %d\n", newHorizontalP); % DEBUGGING
@@ -287,7 +305,7 @@ function [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, 
 end
 
 % Calculate game probabilities
-function probDist = evaluateZeroSumGame(cartesianPoints)
+function [probDist, probDistt] = evaluateZeroSumGame(cartesianPoints)
     matrixSize = groupcounts(cartesianPoints(:, 2));
     occsX = matrixSize(1); % 8
     occsY = size(cartesianPoints, 1) / occsX; % 7
@@ -319,7 +337,7 @@ function probDist = evaluateZeroSumGame(cartesianPoints)
     ubt = [];
 
     rest = linprog(-ft, -An, bt, Aeqt, beqt, lbt, ubt);
-    probDistt = rest(1:occsY, 1); %%%% ERROR
+    probDistt = rest(1:occsY, 1);
     utilValt = rest(end, 1);
 
     % evaluate game

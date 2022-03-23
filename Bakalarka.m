@@ -85,7 +85,6 @@ function checkedValue = checkValidity(valueWanted, threshold)
     end
 end
 
-% Testing in place 90, 93 [comment for random]
 % Returns list of point heights with a 2D array with them marked
 function [pointsArr, heightList] = generateEnvironment(smoothVal, n, height)
     % create appropriate 2d array

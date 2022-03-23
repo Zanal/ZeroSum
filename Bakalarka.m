@@ -6,59 +6,64 @@ runThesis();
 
 % Function encapsulating outputs to keep Workspace empty
 function runThesis()
-str = input("Do you want to change default setting? Y or enter: ",'s');
-if ~isempty(str)
-    newN = input("Set number of points: "); % check if integer
-    newSmooth = input("Set smoothness of points: ");
-    newRuns = input("Set number of runs: "); % don't have to set all
-    newHeight = input("Set possible max height of points: ");
-    [n, smoothVal, numRuns, height] = setVariables(newN, newSmooth, newRuns, newHeight);
-    clear newN newSmooth newRuns; % was in local scope
-else
-    [n, smoothVal, numRuns, height] = setVariables(10, 0.2, 7, 500); % load from text file
-end
-visuals = input("Do you want to see all outputs? Y or enter: ",'s');
-if ~isempty(visuals)
-    visualsIdx = 1;
-else
-    visualsIdx = numRuns;
-end
-
-[pointsArr, heightList] = generateEnvironment(smoothVal, n, height);
-[r, c] = find(pointsArr > -1);
-bools = pointsArr > -1;
-coords = [r, c, pointsArr(bools)]; % x,y,z
-
-triangArr = createTriangulations(r, c);
-[lineList, lLwCoords] = createListOfLines(coords, triangArr);
-sLWCoords = sortrows(lLwCoords, 'ascend');
-coordsForEqs = coords;
-[cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coordsForEqs);
-
-for i = 1:numRuns
-    if i ~= 1
-        coords = cartesianPoints;
+    str = input("Do you want to change default setting? Y or enter: ",'s');
+    if ~isempty(str)
+        newN = input("Set number of points: "); % check if integer
+        newSmooth = input("Set smoothness of points: ");
+        newRuns = input("Set number of runs: "); % don't have to set all
+        newHeight = input("Set possible max height of points: ");
+        [n, smoothVal, numRuns, height] = setVariables(newN, newSmooth, newRuns, newHeight);
+        clear newN newSmooth newRuns; % was in local scope
+    else
+        [n, smoothVal, numRuns, height] = setVariables(10, 0.2, 5, 500);
     end
-    tic %TIMER START
-    smootherpoints = smoothenPlane(coords, sLWCoords);
-    cartesianPoints = makeCartesianProduct(smootherpoints);
-    cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)]; % x y -1
-    [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows'); % assign height to points already counted
-    cartesianPoints(indx, 3) = smootherpoints(:, 3);
-    toc %TIMER STOPS
+    visuals = input("Do you want to see all outputs? Y or enter: ",'s');
+    if ~isempty(visuals)
+        visualsIdx = 1;
+    else
+        visualsIdx = numRuns;
+    end
+    
+    [pointsArr, heightList] = generateEnvironment(smoothVal, n, height);
+    [r, c] = find(pointsArr > -1);
+    bools = pointsArr > -1;
+    coords = [r, c, pointsArr(bools)]; % x,y,z
+    
+    triangArr = createTriangulations(r, c);
+    [lineList, lLwCoords] = createListOfLines(coords, triangArr);
+    sLWCoords = sortrows(lLwCoords, 'ascend');
+    coordsForEqs = coords;
+    [cTriangleVariables, triangleEquations] = calculateTriangEq(triangArr, coordsForEqs);
 
-    cartesianPoints = calculateCPHeights(triangArr, coordsForEqs, cartesianPoints, triangleEquations, cTriangleVariables);
-    [probDist, probDistt] = evaluateZeroSumGame(cartesianPoints);
-    if visualsIdx == i
-        displayTriangulated(triangArr, heightList, r, c, cartesianPoints, probDist, probDistt);
-        visualsIdx = visualsIdx + 1;
-        if i ~= numRuns
-            disp("Press a key to continue!");
-            pause;
+    for i = 1:numRuns
+        if i ~= 1
+            coords = cartesianPoints;
         end
-    end    
-end
-disp("Finished");
+        tic %TIMER START
+        smootherpoints = smoothenPlane(coords, sLWCoords);
+        cartesianPoints = makeCartesianProduct(smootherpoints);
+        cartesianPoints = [cartesianPoints, -ones(size(cartesianPoints,1), 1)]; % x y -1
+        [~, indx] = intersect(cartesianPoints(:,1:2), smootherpoints(:,1:2), 'rows'); % assign height to points already counted
+        cartesianPoints(indx, 3) = smootherpoints(:, 3);
+        toc %TIMER STOPS
+    
+        pointsPrint = ['Number of points in domain is: ', num2str(size(cartesianPoints,1))];
+        disp(pointsPrint);
+        currRun = ['Currently we are at iteration number ', num2str(i), ' out of ', num2str(numRuns), '.'];
+        disp(currRun);
+    
+        cartesianPoints = calculateCPHeights(triangArr, coordsForEqs, cartesianPoints, triangleEquations, cTriangleVariables);
+        [probDist, probDistt] = evaluateZeroSumGame(cartesianPoints);
+        if visualsIdx == i
+            displayTriangulated(triangArr, heightList, r, c, cartesianPoints, probDist, probDistt);
+            visualsIdx = visualsIdx + 1;
+            if i ~= numRuns
+                disp("Press a key to continue!");
+                pause;
+            end
+        end    
+    end
+    disp("Finished");
 end
 
 % Sets required variables and checks valid values
@@ -69,11 +74,11 @@ function [n, smoothVal, numRuns, height]  = setVariables(newN, newSmooth, newRun
     height = checkValidity(newHeight, 0);
 end
 
-% Check input validity - NEED TO ADD STRINGS/FLOATS ...
+% Check input validity
 function checkedValue = checkValidity(valueWanted, threshold)
-    if valueWanted <= threshold
+    if valueWanted < threshold
        tooLow = ["Value too low setting to ", threshold];
-       disp(tooLow)
+       disp(tooLow);
        checkedValue = threshold;
     else
        checkedValue = valueWanted;
@@ -91,44 +96,54 @@ function [pointsArr, heightList] = generateEnvironment(smoothVal, n, height)
         (nRC + 1):(nIdx - nRC),... % middle
         (nIdx - nRC + 2):(nIdx - 1)]; % last row
     cornerIdx = [1, nRC, nIdx - nRC + 1, nIdx];
-    idx = sort([noCornerIdx(randperm(numel(noCornerIdx), n - 4)), cornerIdx]); % Matlab indexes from 1, maybe sort maybe no
-    %idx = [1, 3, nRC, 7, 8, 12, 13, 19, nIdx - nRC + 1, nIdx]; % TESTING
+    idx = sort([noCornerIdx(randperm(numel(noCornerIdx), n - 4)), cornerIdx]);
     heightRange = height + 1;
     heightList = randperm(heightRange, n) - 1;
-    %heightList = [40,410,340,150,440,10,190,160,320,330]; % TESTING
     pointsArr(idx) = heightList;
 end
 
 % Returns delaunay triangulation using delaunay library
 function triangArr = createTriangulations(r, c)
     triangArr = delaunay(r, c);
-    disp(triangArr)
 end
 
 % Displays either 2D, 3D, or both
 function displayTriangulated(triangArr, heightList, r, c, cartesianPoints, probDist, probDistt)
     str = input("Do you want 2D, 3D, or both visualizations? 2,3, or enter: ", 's');
     if (strcmp(str,"2"))
+        figure('Name','2D Visualization','NumberTitle','off')
         triplot(triangArr, r, c);
         hold on
         plot(cartesianPoints(:, 1), cartesianPoints(:, 2), 'r.')
+        xlabel("x coordinate")
+        ylabel("y coordinate")
         hold off
     elseif (strcmp(str,"3"))    
+        figure('Name','3D Visualization','NumberTitle','off')
         trimesh(triangArr, r, c, heightList);
         hold on
         plot3(cartesianPoints(:, 1), cartesianPoints(:, 2), cartesianPoints(:, 3), 'r.')
+        xlabel("x coordinate")
+        ylabel("y coordinate")
+        zlabel("z coordinate")
         hold off
     else
+        figure('Name','2D Visualization','NumberTitle','off')
         triplot(triangArr, r, c);
         hold on
         plot(cartesianPoints(:, 1), cartesianPoints(:, 2), 'r.')
+        xlabel("x coordinate")
+        ylabel("y coordinate")
         hold off
-        figure
+        figure('Name','3D Visualization','NumberTitle','off')
         trimesh(triangArr, r, c, heightList);
         hold on
         plot3(cartesianPoints(:, 1), cartesianPoints(:, 2), cartesianPoints(:, 3), 'r.')
+        xlabel("x coordinate")
+        ylabel("y coordinate")
+        zlabel("z coordinate")
         hold off
-    figure
+    figure('Name','Player Probability Distribution','NumberTitle','off')
     stairs(probDist, 'LineWidth', 2, 'Marker', 'd', 'MarkerFaceColor', 'c');
     hold on
     stairs(probDistt, 'LineWidth', 2, 'Marker', 'd', 'MarkerFaceColor', 'r');
@@ -156,7 +171,7 @@ function [lineList, lLwCoords] = createListOfLines(coords, triangArr)
     end
 end
 
-% Find new intersections
+% Find new intersections in both directions
 function smootherpoints = smoothenPlane(coords, sLWCoords)
     smootherpoints = coords;
     for i = 1:size(coords, 1)
